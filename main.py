@@ -49,7 +49,6 @@ WEEKDAYS = ["понедельник", "вторник", "среда", "четв�
 
 
 def has_internet():
-    """Проверка интернета."""
     try:
         socket.create_connection(("8.8.8.8", 53), timeout=2)
         return True
@@ -148,7 +147,6 @@ class JarvisApp(App):
 
     @run_on_ui_thread
     def start_listening(self, instance=None):
-        # Проверка интернета — без него распознавание не работает
         if not has_internet():
             self.respond("Нет интернета")
             Clock.schedule_once(lambda dt: self.start_listening(), 3)
@@ -174,11 +172,9 @@ class JarvisApp(App):
         Clock.schedule_once(lambda dt: self.start_listening(), 1)
 
     def execute_command(self, text):
-        # === ГОЛОС (шутка) ===
         if "голос" in text:
             self.respond("Пошёл нахуй")
 
-        # === МУЗЫКА ===
         elif "музыка" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PLAY)
             self.respond("Включаю музыку")
@@ -192,7 +188,6 @@ class JarvisApp(App):
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
             self.respond("Предыдущий трек")
 
-        # === ПРИЛОЖЕНИЯ ===
         elif "happ" in text or "впн" in text:
             self.open_app(PACKAGE_HAPP, "happ")
         elif "хром" in text or "браузер" in text:
@@ -218,7 +213,6 @@ class JarvisApp(App):
         elif "телефон" in text:
             self.open_app(PACKAGE_PHONE, "Телефон")
 
-        # === УПРАВЛЕНИЕ ===
         elif "домой" in text:
             self.send_key(3)
             self.respond("Домой")
@@ -237,7 +231,6 @@ class JarvisApp(App):
         elif "фонарик" in text:
             self.toggle_flashlight()
 
-        # === ИНФОРМАЦИЯ ===
         elif "время" in text:
             now = datetime.now().strftime("%H:%M")
             self.respond(f"Сейчас {now}")
@@ -252,7 +245,6 @@ class JarvisApp(App):
         elif "заряд" in text or "батарея" in text:
             self.show_battery()
 
-        # === РАЗВЛЕЧЕНИЯ ===
         elif "анекдот" in text:
             self.respond(random.choice(JOKES))
         elif "монетка" in text or "монету" in text:
