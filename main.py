@@ -4,19 +4,20 @@ from kivy.uix.label import Label
 from kivy.uix.button import Button
 from kivy.clock import Clock, mainthread
 from jnius import autoclass, PythonJavaClass, java_method
-from android import activity
 from android.runnable import run_on_ui_thread
 from datetime import datetime
 import random
 import requests
+import socket
 
 # ==== ANDROID API ====
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
 SpeechRecognizer = autoclass('android.speech.SpeechRecognizer')
 RecognizerIntent = autoclass('android.speech.RecognizerIntent')
 Intent = autoclass('android.content.Intent')
-Uri = autoclass('android.net.Uri')
 KeyEvent = autoclass('android.view.KeyEvent')
+TextToSpeech = autoclass('android.speech.tts.TextToSpeech')
+Locale = autoclass('java.util.Locale')
 
 # ==== ИМЕНА ПАКЕТОВ ====
 PACKAGE_HAPP = "su.happ.proxyutility"
@@ -38,13 +39,22 @@ LON = 32.0401
 
 JOKES = [
     "Программист ставит на ночь два стакана: один с водой — если захочет пить, второй пустой — если не захочет.",
-    "— Сколько программистов нужно, чтобы вкрутить лампочку? — Ни одного, это аппаратная проблема.",
+    "Сколько программистов нужно, чтобы вкрутить лампочку? Ни одного, это аппаратная проблема.",
     "Программист — это машина для превращения кофе в код.",
-    "— Почему программисты путают Хэллоуин и Рождество? — Потому что OCT 31 = DEC 25.",
+    "Почему программисты путают Хэллоуин и Рождество? Потому что OCT 31 равно DEC 25.",
     "Оптимист верит, что мы живём в лучшем из миров. Пессимист боится, что так оно и есть.",
 ]
 
 WEEKDAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+
+
+def has_internet():
+    """Проверка интернета."""
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=2)
+        return True
+    except OSError:
+        return False
 
 
 class RecognitionListener(PythonJavaClass):
@@ -86,6 +96,19 @@ class RecognitionListener(PythonJavaClass):
     def onEvent(self, eventType, params): pass
 
 
+class TTSListener(PythonJavaClass):
+    __javainterfaces__ = ['android/speech/tts/TextToSpeech$OnInitListener']
+    __javacontext__ = 'app'
+
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    @java_method('(I)V')
+    def onInit(self, status):
+        self.callback(status)
+
+
 class JarvisApp(App):
     def build(self):
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=20)
@@ -96,11 +119,41 @@ class JarvisApp(App):
         self.layout.add_widget(self.btn)
         self.recognizer = None
         self.listener = None
+        self.tts = None
         self.flashlight_on = False
+        self.init_tts()
         return self.layout
+
+    def init_tts(self):
+        try:
+            activity = PythonActivity.mActivity
+            self.tts = TextToSpeech(activity, TTSListener(self.on_tts_init))
+            self.tts.setLanguage(Locale("ru", "RU"))
+        except Exception as e:
+            print("TTS init error:", e)
+
+    def on_tts_init(self, status):
+        print("TTS status:", status)
+
+    def say(self, text):
+        try:
+            if self.tts:
+                self.tts.speak(text, TextToSpeech.QUEUE_FLUSH, None)
+        except Exception as e:
+            print("TTS speak error:", e)
+
+    def respond(self, text):
+        self.status.text = text
+        self.say(text)
 
     @run_on_ui_thread
     def start_listening(self, instance=None):
+        # Проверка интернета — без него распознавание не работает
+        if not has_internet():
+            self.respond("Нет интернета")
+            Clock.schedule_once(lambda dt: self.start_listening(), 3)
+            return
+
         self.status.text = "🎤 Слушаю..."
         activity = PythonActivity.mActivity
         if self.recognizer is None:
@@ -121,24 +174,23 @@ class JarvisApp(App):
         Clock.schedule_once(lambda dt: self.start_listening(), 1)
 
     def execute_command(self, text):
+        # === ГОЛОС (шутка) ===
+        if "голос" in text:
+            self.respond("Пошёл нахуй")
+
         # === МУЗЫКА ===
-        if "музыка" in text:
+        elif "музыка" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PLAY)
-            self.status.text = "🎵 Музыка"
+            self.respond("Включаю музыку")
         elif "пауза" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PAUSE)
-            self.status.text = "⏸ Пауза"
+            self.respond("Пауза")
         elif "след" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_NEXT)
-            self.status.text = "⏭ Следующий"
+            self.respond("Следующий трек")
         elif "пред" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
-            self.status.text = "⏮ Предыдущий"
-
-        # === ЗВОНОК ===
-        elif "позвони" in text:
-            name = text.replace("джарвис", "").replace("позвони", "").strip()
-            self.call_contact(name)
+            self.respond("Предыдущий трек")
 
         # === ПРИЛОЖЕНИЯ ===
         elif "happ" in text or "впн" in text:
@@ -169,30 +221,30 @@ class JarvisApp(App):
         # === УПРАВЛЕНИЕ ===
         elif "домой" in text:
             self.send_key(3)
-            self.status.text = "🏠 Домой"
+            self.respond("Домой")
         elif "назад" in text:
             self.send_key(4)
-            self.status.text = "⬅️ Назад"
+            self.respond("Назад")
         elif "меню" in text:
             self.send_key(82)
-            self.status.text = "📋 Меню"
+            self.respond("Меню")
         elif "скриншот" in text:
             self.take_screenshot()
         elif "спать" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PAUSE)
+            self.respond("Спокойной ночи")
             self.send_key(26)
-            self.status.text = "😴 Сплю"
         elif "фонарик" in text:
             self.toggle_flashlight()
 
         # === ИНФОРМАЦИЯ ===
         elif "время" in text:
             now = datetime.now().strftime("%H:%M")
-            self.status.text = f"🕐 {now}"
+            self.respond(f"Сейчас {now}")
         elif "дата" in text:
             now = datetime.now()
             day = WEEKDAYS[now.weekday()]
-            self.status.text = f"📅 {now.strftime('%d.%m.%Y')}, {day}"
+            self.respond(f"Сегодня {now.strftime('%d.%m.%Y')}, {day}")
         elif "погода на завтра" in text or "завтра погода" in text:
             self.show_weather(tomorrow=True)
         elif "погода" in text:
@@ -202,33 +254,19 @@ class JarvisApp(App):
 
         # === РАЗВЛЕЧЕНИЯ ===
         elif "анекдот" in text:
-            self.status.text = f"😄 {random.choice(JOKES)}"
+            self.respond(random.choice(JOKES))
         elif "монетка" in text or "монету" in text:
-            self.status.text = f"🪙 {random.choice(['Орёл', 'Решка'])}"
+            self.respond(f"Выпало: {random.choice(['Орёл', 'Решка'])}")
         elif "кубик" in text:
-            self.status.text = f"🎲 Выпало: {random.randint(1, 6)}"
+            self.respond(f"Выпало: {random.randint(1, 6)}")
         elif "случайное число" in text:
-            self.status.text = f"🎰 {random.randint(1, 100)}"
+            self.respond(f"Число: {random.randint(1, 100)}")
 
         elif "джарвис стоп" in text:
-            self.status.text = "👋 До связи"
+            self.respond("До связи")
 
         else:
-            self.status.text = f"🤷 Не понял: {text}"
-
-    def call_contact(self, name):
-        """Позвонить контакту по имени."""
-        if not name:
-            self.status.text = "❌ Не понял имя"
-            return
-        try:
-            activity = PythonActivity.mActivity
-            intent = Intent(Intent.ACTION_CALL)
-            intent.setData(Uri.parse(f"tel:{name}"))
-            activity.startActivity(intent)
-            self.status.text = f"📞 Звоню: {name}"
-        except Exception as e:
-            self.status.text = f"❌ Звонок: {str(e)[:50]}"
+            self.respond(f"Не понял: {text}")
 
     def open_app(self, package, name):
         try:
@@ -237,11 +275,11 @@ class JarvisApp(App):
             intent = pm.getLaunchIntentForPackage(package)
             if intent:
                 activity.startActivity(intent)
-                self.status.text = f"🚀 {name}"
+                self.respond(f"Открываю {name}")
             else:
-                self.status.text = f"❌ {name} не найден"
+                self.respond(f"{name} не найден")
         except Exception as e:
-            self.status.text = f"❌ {name}: {str(e)[:50]}"
+            self.respond(f"Ошибка {name}")
 
     def send_media_key(self, key_code):
         try:
@@ -263,9 +301,9 @@ class JarvisApp(App):
     def take_screenshot(self):
         try:
             self.send_media_key(KeyEvent.KEYCODE_SYSRQ)
-            self.status.text = "📸 Скриншот"
+            self.respond("Скриншот")
         except:
-            self.status.text = "❌ Скриншот не удался"
+            self.respond("Не удалось")
 
     def toggle_flashlight(self):
         try:
@@ -275,11 +313,14 @@ class JarvisApp(App):
             camera_id = cm.getCameraIdList()[0]
             self.flashlight_on = not self.flashlight_on
             cm.setTorchMode(camera_id, self.flashlight_on)
-            self.status.text = f"🔦 Фонарик {'вкл' if self.flashlight_on else 'выкл'}"
-        except Exception as e:
-            self.status.text = f"❌ Фонарик: {str(e)[:50]}"
+            self.respond(f"Фонарик {'включён' if self.flashlight_on else 'выключен'}")
+        except:
+            self.respond("Фонарик не работает")
 
     def show_weather(self, tomorrow=False):
+        if not has_internet():
+            self.respond("Нет интернета")
+            return
         try:
             url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current_weather=true&daily=temperature_2m_max,temperature_2m_min&timezone=auto"
             resp = requests.get(url, timeout=10)
@@ -287,12 +328,12 @@ class JarvisApp(App):
             if tomorrow:
                 tmax = data["daily"]["temperature_2m_max"][1]
                 tmin = data["daily"]["temperature_2m_min"][1]
-                self.status.text = f"🌤 Завтра: {tmin}..{tmax}°C"
+                self.respond(f"Завтра от {tmin} до {tmax} градусов")
             else:
                 temp = data["current_weather"]["temperature"]
-                self.status.text = f"🌤 Сейчас: {temp}°C"
-        except Exception as e:
-            self.status.text = f"❌ Погода: {str(e)[:50]}"
+                self.respond(f"Сейчас {temp} градусов")
+        except:
+            self.respond("Не удалось узнать погоду")
 
     def show_battery(self):
         try:
@@ -302,9 +343,9 @@ class JarvisApp(App):
             activity = PythonActivity.mActivity
             battery = activity.registerReceiver(None, IntentFilter(Intent2.ACTION_BATTERY_CHANGED))
             level = battery.getIntExtra("level", 0)
-            self.status.text = f"🔋 Заряд: {level}%"
-        except Exception as e:
-            self.status.text = f"❌ Батарея: {str(e)[:50]}"
+            self.respond(f"Заряд {level} процентов")
+        except:
+            self.respond("Не удалось узнать заряд")
 
 
 if __name__ == '__main__':
