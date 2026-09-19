@@ -17,10 +17,16 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
-    - name: Install Python dependencies (old pip)
+    - name: Install Python dependencies
       run: |
         pip install --upgrade "pip<24.0" "setuptools<70"
         pip install buildozer cython
+    - name: Patch Buildozer
+      run: |
+        BUILDOZER_PATH=$(python -c "import buildozer; print(buildozer.__file__)" | xargs dirname)
+        echo "Buildozer path: $BUILDOZER_PATH"
+        find $BUILDOZER_PATH -name "*.py" -exec sed -i 's/from pip._internal.exceptions import BuildDependencyInstallError//g' {} \;
+        find $BUILDOZER_PATH -name "*.py" -exec sed -i 's/BuildDependencyInstallError/Exception/g' {} \;
     - name: Build APK
       run: |
         yes | buildozer android debug || true
