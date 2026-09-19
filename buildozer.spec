@@ -11,6 +11,7 @@ requirements = python3,kivy,pyjnius
 
 android.permissions = RECORD_AUDIO, INTERNET, WRITE_EXTERNAL_STORAGE
 
-android.arch = arm64-v8a
+android.archs = arm64-v8a
+android.ndk = 25b
 
 orientation = portrait
