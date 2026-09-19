@@ -9,8 +9,10 @@ version = 0.1
 
 requirements = python3,kivy,pyjnius
 
-android.permissions = RECORD_AUDIO, INTERNET, WRITE_EXTERNAL_STORAGE
+android.permissions = RECORD_AUDIO, INTERNET, WRITE_EXTERNAL_STORAGE, BLUETOOTH_CONNECT
 
+android.api = 33
+android.minapi = 24
 android.archs = arm64-v8a
 android.ndk = 25b
 
