@@ -7,8 +7,10 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
 version = 0.1
 
-requirements = python3,kivy,pyjnius,requests,speechrecognition
+requirements = python3,kivy,pyjnius
 
 android.permissions = RECORD_AUDIO, INTERNET, WRITE_EXTERNAL_STORAGE
+
+android.arch = arm64-v8a
 
 orientation = portrait
