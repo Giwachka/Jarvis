@@ -1,27 +1,14 @@
-name: Build Jarvis APK
+[app]
+title = Jarvis
+package.name = jarvis
+package.domain = org.test
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [ main ]
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas
+version = 0.1
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install dependencies
-      run: |
-        sudo apt update
-        sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-        pip install buildozer cython
-    - name: Build with Buildozer
-      run: buildozer -v android debug
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: jarvis-apk
-        path: bin/*.apk
+requirements = python3,kivy,pyjnius,requests,speechrecognition
+
+android.permissions = RECORD_AUDIO, INTERNET, WRITE_EXTERNAL_STORAGE
+
+orientation = portrait
