@@ -1,84 +1,139 @@
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
-from kivy.clock import Clock
-from jnius import autoclass
-from time import sleep
+from kivy.uix.button import Button
+from kivy.clock import Clock, mainthread
+from jnius import autoclass, PythonJavaClass, java_method
+from android import activity
+from android.runnable import run_on_ui_thread
 from datetime import datetime
-import requests
-import speech_recognition as sr
+import time
 
 # ==== ANDROID API ====
-MediaRecorder = autoclass('android.media.MediaRecorder')
-AudioSource = autoclass('android.media.MediaRecorder$AudioSource')
-OutputFormat = autoclass('android.media.MediaRecorder$OutputFormat')
-AudioEncoder = autoclass('android.media.MediaRecorder$AudioEncoder')
-KeyEvent = autoclass('android.view.KeyEvent')
 PythonActivity = autoclass('org.kivy.android.PythonActivity')
+SpeechRecognizer = autoclass('android.speech.SpeechRecognizer')
+RecognizerIntent = autoclass('android.speech.RecognizerIntent')
+Intent = autoclass('android.content.Intent')
+Locale = autoclass('java.util.Locale')
+KeyEvent = autoclass('android.view.KeyEvent')
 
-RECORD_PATH = '/sdcard/jarvis_record.3gp'
-CITY = "Смоленск"
-LAT = 54.7818
-LON = 32.0401
-
-# ==== ИМЕНА ПАКЕТОВ ПРИЛОЖЕНИЙ ====
+# ==== ИМЕНА ПАКЕТОВ ====
 PACKAGE_HAPP = "su.happ.proxyutility"
 PACKAGE_CHROME = "com.android.chrome"
 PACKAGE_DEEPSEEK = "com.deepseek.chat"
 PACKAGE_GALLERY = "com.google.android.apps.photosgo"
-PACKAGE_ICECUBE = "com.icecube.multiplayer"    # проверь
-PACKAGE_TIKTOK = "com.zhiliaoapp.musically"    # проверь
+PACKAGE_ICECUBE = "com.icecube.multiplayer"
+PACKAGE_TIKTOK = "com.zhiliaoapp.musically"
 PACKAGE_ANIXART = "com.Japa_Ani_.Anim_Application"
 PACKAGE_MAX = "fr.max.android"
+
+
+class RecognitionListener(PythonJavaClass):
+    """Слушатель результатов распознавания речи."""
+    __javainterfaces__ = ['android/speech/RecognitionListener']
+    __javacontext__ = 'app'
+
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    @java_method('(Landroid/os/Bundle;)V')
+    def onReadyForSpeech(self, params):
+        pass
+
+    @java_method('()V')
+    def onBeginningOfSpeech(self):
+        pass
+
+    @java_method('(F)V')
+    def onRmsChanged(self, rmsdB):
+        pass
+
+    @java_method('([B)V')
+    def onBufferReceived(self, buffer):
+        pass
+
+    @java_method('()V')
+    def onEndOfSpeech(self):
+        pass
+
+    @java_method('(I)V')
+    def onError(self, error):
+        print("Speech error:", error)
+
+    @java_method('(Landroid/os/Bundle;)V')
+    def onResults(self, results):
+        # Получаем список строк
+        matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+        if matches and matches.size() > 0:
+            text = matches.get(0).lower()
+            print("Recognized:", text)
+            self.callback(text)
+
+    @java_method('(Landroid/os/Bundle;)V')
+    def onPartialResults(self, partialResults):
+        pass
+
+    @java_method('(Landroid/os/Bundle;)V')
+    def onEvent(self, eventType, params):
+        pass
 
 
 class JarvisApp(App):
     def build(self):
         self.layout = BoxLayout(orientation='vertical', padding=20, spacing=20)
         self.status = Label(text="🤖 Джарвис готов", font_size='20sp')
+        self.btn = Button(text="🎤 Слушать", font_size='18sp', size_hint=(1, 0.3))
+        self.btn.bind(on_press=self.start_listening)
         self.layout.add_widget(self.status)
-        Clock.schedule_interval(self.loop, 0.1)
+        self.layout.add_widget(self.btn)
+        self.recognizer = None
+        self.listener = None
         return self.layout
 
-    def loop(self, dt):
-        self.listen_and_process()
-        sleep(1)
-        return True
+    @run_on_ui_thread
+    def start_listening(self, instance=None):
+        """Запуск распознавания речи."""
+        self.status.text = "🎤 Слушаю..."
 
-    def listen_and_process(self):
-        try:
-            recorder = MediaRecorder()
-            recorder.setAudioSource(AudioSource.MIC)
-            recorder.setOutputFormat(OutputFormat.THREE_GPP)
-            recorder.setAudioEncoder(AudioEncoder.AMR_NB)
-            recorder.setOutputFile(RECORD_PATH)
-            recorder.prepare()
-            recorder.start()
-            sleep(4)
-            recorder.stop()
-            recorder.release()
+        activity = PythonActivity.mActivity
+        if self.recognizer is None:
+            self.recognizer = SpeechRecognizer.createSpeechRecognizer(activity)
+            self.listener = RecognitionListener(self.on_result)
+            self.recognizer.setRecognitionListener(self.listener)
 
-            r = sr.Recognizer()
-            with sr.AudioFile(RECORD_PATH) as source:
-                audio = r.record(source)
-            text = r.recognize_google(audio, language="ru-RU").lower()
-            self.status.text = f"Ты: {text}"
-            self.execute_command(text)
-        except:
-            pass
+        intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+
+        self.recognizer.startListening(intent)
+
+    @mainthread
+    def on_result(self, text):
+        """Обработка распознанного текста."""
+        self.status.text = f"Ты: {text}"
+        self.execute_command(text)
+        # Через 1 секунду снова слушаем
+        Clock.schedule_once(lambda dt: self.start_listening(), 1)
 
     def execute_command(self, text):
-        # === МУЗЫКА (Play) ===
+        # === МУЗЫКА ===
         if "музыка" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PLAY)
             self.status.text = "🎵 Музыка"
 
-        # === ПАУЗА ===
         elif "пауза" in text:
             self.send_media_key(KeyEvent.KEYCODE_MEDIA_PAUSE)
             self.status.text = "⏸ Пауза"
 
-        # === ЗАПУСК ПРИЛОЖЕНИЙ ===
+        elif "след" in text:
+            self.send_media_key(KeyEvent.KEYCODE_MEDIA_NEXT)
+
+        elif "пред" in text:
+            self.send_media_key(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+
+        # === ПРИЛОЖЕНИЯ ===
         elif "happ" in text or "впн" in text:
             self.open_app(PACKAGE_HAPP, "happ")
         elif "хром" in text or "браузер" in text:
@@ -97,21 +152,19 @@ class JarvisApp(App):
             self.open_app(PACKAGE_MAX, "Max")
 
         # === ВРЕМЯ ===
-        elif "время" in text:
+        elif "время" in text or "час" in text:
             now = datetime.now().strftime("%H:%M")
             self.status.text = f"🕐 {now}"
-
-        # === ПОГОДА ===
-        elif "погода" in text:
-            self.show_weather()
 
         # === СТОП ===
         elif "джарвис стоп" in text:
             self.status.text = "👋 До связи"
-            App.get_running_app().stop()
+
+        else:
+            self.status.text = f"🤷 Не понял: {text}"
 
     def open_app(self, package, name):
-        """Открыть приложение по имени пакета."""
+        """Открыть приложение."""
         try:
             activity = PythonActivity.mActivity
             pm = activity.getPackageManager()
@@ -122,24 +175,15 @@ class JarvisApp(App):
             else:
                 self.status.text = f"❌ {name} не найден"
         except Exception as e:
-            self.status.text = f"❌ {name}: {e}"
+            self.status.text = f"❌ {name}: {str(e)[:50]}"
 
     def send_media_key(self, key_code):
+        """Отправить медиа-кнопку."""
         try:
             activity = PythonActivity.mActivity
             am = activity.getSystemService(activity.AUDIO_SERVICE)
             am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key_code))
             am.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key_code))
-        except:
-            pass
-
-    def show_weather(self):
-        try:
-            url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&current_weather=true"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            temp = data["current_weather"]["temperature"]
-            self.status.text = f"🌤 {temp}°C"
         except:
             pass
 
