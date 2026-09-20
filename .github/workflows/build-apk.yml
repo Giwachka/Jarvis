@@ -27,8 +27,8 @@ jobs:
     - name: Build APK
       run: |
         export JAVA_HOME=$JAVA_HOME_17_X64
-        yes | buildozer android debug --no-venv || true
-        buildozer android debug --no-venv
+        yes | buildozer android debug || true
+        buildozer android debug
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
