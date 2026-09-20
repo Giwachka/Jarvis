@@ -13,7 +13,6 @@ sources = ["src/jarvis"]
 requires = ["kivy", "pyjnius", "requests"]
 
 [tool.briefcase.app.jarvis.android]
-build_backend = "briefcase_p4a_backend"
 android_archs = ["arm64-v8a"]
 android_sdk_version = "33"
 android_min_sdk_version = "24"
