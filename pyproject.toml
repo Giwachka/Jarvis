@@ -2,7 +2,6 @@
 project_name = "Jarvis"
 bundle = "org.test"
 version = "0.1"
-license = "MIT"
 author = "Giwachka"
 author_email = "test@example.com"
 
