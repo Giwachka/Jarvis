@@ -1,0 +1,17 @@
+[tool.briefcase]
+project_name = "Jarvis"
+bundle = "org.test"
+version = "0.1"
+
+[tool.briefcase.app.jarvis]
+formal_name = "Jarvis"
+description = "Голосовой помощник"
+sources = ["src"]
+requires = ["kivy", "pyjnius", "requests"]
+
+[tool.briefcase.app.jarvis.android]
+build_backend = "briefcase_p4a_backend"
+android_archs = ["arm64-v8a"]
+android_sdk_version = "33"
+android_min_sdk_version = "24"
+android_permissions = ["RECORD_AUDIO", "INTERNET", "WRITE_EXTERNAL_STORAGE"]
