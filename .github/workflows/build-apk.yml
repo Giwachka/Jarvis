@@ -22,24 +22,6 @@ jobs:
         sudo apt update
         sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
         pip install "briefcase==0.3.23" "briefcase-p4a-backend==1.0.0"
-    - name: Patch briefcase for p4a-backend
-      run: |
-        PATCH_FILE=$(python -c "import briefcase.config; print(briefcase.config.__file__)" 2>/dev/null)
-        if [ -n "$PATCH_FILE" ]; then
-          echo "Patching: $PATCH_FILE"
-          # Добавляем обратно функцию parsed_version через packaging
-          cat >> "$PATCH_FILE" << 'EOF'
-
-from packaging.version import Version, InvalidVersion
-
-def parsed_version(version):
-    """Backward compatibility shim for briefcase-p4a-backend."""
-    try:
-        return Version(version)
-    except InvalidVersion:
-        raise ValueError(f"Invalid version: {version}")
-EOF
-        fi
     - name: Build APK
       run: |
         briefcase create android p4a
