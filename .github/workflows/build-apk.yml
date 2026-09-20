@@ -21,14 +21,11 @@ jobs:
       run: |
         sudo apt update
         sudo apt install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
-        pip install "briefcase==0.3.23" "briefcase-p4a-backend==1.0.0"
+        pip install briefcase
     - name: Build APK
-      env:
-        GH_TOKEN: ${{ secrets.GH_TOKEN }}
       run: |
-        git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
-        briefcase create android p4a
-        briefcase build android p4a
+        briefcase create android
+        briefcase build android
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
