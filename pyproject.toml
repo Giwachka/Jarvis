@@ -10,10 +10,12 @@ author_email = "test@example.com"
 formal_name = "Jarvis"
 description = "Голосовой помощник"
 sources = ["src/jarvis"]
-requires = ["kivy", "pyjnius", "requests"]
+requires = ["pyjnius"]
 
 [tool.briefcase.app.jarvis.android]
 android_archs = ["arm64-v8a"]
 android_sdk_version = "33"
 android_min_sdk_version = "24"
 android_permissions = ["RECORD_AUDIO", "INTERNET", "WRITE_EXTERNAL_STORAGE"]
+
+[tool.briefcase.app.jarvis.android.gradle_dependencies]
